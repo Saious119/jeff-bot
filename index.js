@@ -64,10 +64,14 @@ async function scheduleCronJob() {
         if (onSaleDate.format("LL") == dayjs().format("LL")) {
           console.log(onSaleDate.format("LL"));
           console.log(dayjs().format("LL"));
-          await channel.send({
-            content: `# ${comic.title} is out today`,
-            embeds: [embed],
-          });
+          try {
+            await channel.send({
+              content: `# ${comic.title} is out today`,
+              embeds: [embed],
+            });
+          } catch (error) {
+            console.error(`Error sending message for comic ${comic.title}:`, error);
+          }
         }
       }
     },
