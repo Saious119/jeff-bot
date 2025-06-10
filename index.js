@@ -11,6 +11,7 @@ const {
   ButtonStyle,
   ActionRowBuilder,
   ComponentType,
+  InteractionType,
 } = require("discord.js");
 const {
   Client,
@@ -98,6 +99,19 @@ client.on("ready", async () => {
       description: "Prints out any comics that we are tracking",
     });
     await commands.create({
+      name: "next_issue",
+      description: "Check when a series has a new issue coming out next",
+      options: [
+        {
+          name: "series_id",
+          description: "The ID of the series to add",
+          type: ApplicationCommandOptionType.String,
+          required: true,
+          autocomplete: true,
+        },
+      ],
+    });
+    await commands.create({
       name: "add_series",
       description: "Adds a new series to check for updates",
       options: [
@@ -118,6 +132,7 @@ client.on("ready", async () => {
           description: "The ID of the series to remove",
           type: ApplicationCommandOptionType.String,
           required: true,
+          autocomplete: true,
         },
       ],
     });
@@ -146,6 +161,26 @@ function generateActionRow(backDisabled, forwardDisabled, pageNum, numComics) {
 }
 
 client.on("interactionCreate", async (interaction) => {
+  if (interaction.type == InteractionType.ApplicationCommandAutocomplete) {
+    if (
+      interaction.commandName == "next_issue" ||
+      interaction.commandName == "remove_series"
+    ) {
+      const focusedValue = interaction.options.getFocused();
+      const choices = series;
+      const filtered = choices.filter((choice) =>
+        choice.name.toLowerCase().startsWith(focusedValue.toLowerCase())
+      );
+      await interaction.respond(
+        filtered.map((choice) => ({
+          name: choice.name,
+          value: choice.id.toString(),
+        }))
+      );
+    }
+    return;
+  }
+
   if (interaction.commandName == "comics_this_week") {
     await interaction.deferReply();
     const comics = await getComics();
@@ -232,6 +267,21 @@ client.on("interactionCreate", async (interaction) => {
     interaction.reply({
       content: `Removed series with id ${seriesId}`,
     });
+  } else if (interaction.commandName == "next_issue") {
+    await interaction.deferReply();
+    const seriesId = interaction.options.getString("series_id");
+
+    const comic = await nextIssue(seriesId);
+
+    if (comic == null) {
+      await interaction.editReply({
+        content: `Series ${seriesId} does not have a next issue yet`,
+      });
+    } else {
+      await interaction.editReply({
+        embeds: [createEmbedFromComic(comic, false, "Next Issue")],
+      });
+    }
   }
 });
 
@@ -257,10 +307,15 @@ async function checkSeries(seriesId) {
   }
 }
 
-function createEmbedFromComic(comic, isNotification) {
+function createEmbedFromComic(comic, isNotification, optionalTitle) {
   let embed = new EmbedBuilder()
     .setAuthor({
-      name: isNotification ? "New Comic Release" : "Comics Out This Week",
+      name:
+        optionalTitle != undefined
+          ? optionalTitle
+          : isNotification
+          ? "New Comic Release"
+          : "Comics Out This Week",
       iconURL: "https://cdn-icons-png.flaticon.com/512/5619/5619623.png",
     })
     .setTitle(comic.title)
@@ -343,6 +398,37 @@ async function getComicsForSeries(id, name, dateDescriptor) {
     return resp.data.results[0];
   } else {
     console.error("No results this week for series: " + name);
+    return null;
+  }
+}
+
+async function nextIssue(id) {
+  const ts = dayjs().unix().toString();
+  const hash = crypto.hash("md5", ts + privKey + pubKey);
+
+  const resp = await fetch(
+    `https://gateway.marvel.com/v1/public/series/${id}/comics?ts=${ts}&apikey=${pubKey}&hash=${hash}&noVariants=true`
+  ).then((resp) => resp.json());
+  if (resp.data.count > 0) {
+    let today = dayjs();
+    let comics = resp.data.results;
+
+    let idx = comics.findIndex((comic) => {
+      let onSaleDate = comic.dates.find(
+        (date) => date.type === "onsaleDate"
+      ).date;
+
+      return dayjs(onSaleDate).diff(today) <= 0;
+    });
+
+    if (idx == 0) {
+      console.error("There are no unveiled releases that aren't out yet");
+      return null;
+    }
+
+    return comics[idx - 1];
+  } else {
+    console.error("No results for series: " + name);
     return null;
   }
 }

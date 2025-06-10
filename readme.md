@@ -45,6 +45,7 @@ Finally run `npm install`, and `node index.js`
 
 - at 7:00am et it will post a message in a provided channel using the `CHANNEL_ID` env variable of if there are any new releases on that given day.
 - the `/comics_this_week` slash command will post if any of the series you track have releases in the upcoming week
+- `/next_issue` will take a series ID and output when the next issue is released
 - `/add_series`: will take in a series ID and save the fields to the series.json file
 - `/remove_series` does the opposite and removes a series
 - `/print_series` will list all of the series being tracked
