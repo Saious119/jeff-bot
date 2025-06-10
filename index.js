@@ -2,6 +2,8 @@ const crypto = require("node:crypto");
 const dayjs = require("dayjs");
 const LocalizedFormat = require("dayjs/plugin/localizedFormat");
 dayjs.extend(LocalizedFormat);
+const utc = require("dayjs/plugin/utc");
+dayjs.extend(utc);
 const { CronJob } = require("cron");
 const {
   EmbedBuilder,
@@ -18,6 +20,7 @@ const {
 const fs = require("fs");
 
 let series = require("./data/series.json");
+const { on } = require("node:events");
 
 require("dotenv").config();
 
@@ -53,11 +56,13 @@ async function scheduleCronJob() {
       const comics = await getComics();
 
       for (let comic of comics) {
-        const onSaleDate = dayjs(
+        const onSaleDate = dayjs.utc(
           comic.dates.find((date) => date.type === "onsaleDate").date
         );
         const embed = createEmbedFromComic(comic, true);
         if (onSaleDate.format("LL") == dayjs().format("LL")) {
+          console.log(onSaleDate.format("LL"));
+          console.log(dayjs().format("LL"));
           await channel.send({
             content: `# ${comic.title} is out today`,
             embeds: [embed],
